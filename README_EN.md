@@ -1,4 +1,4 @@
-# FIELD 1.0
+# FIELD 
 
 **FIELD** is a portable system utility for Windows 10 and Windows 11. It brings system information, selective configuration, optional built-in app cleanup, startup management, a process viewer, and a file lock inspector into one interface.
 
