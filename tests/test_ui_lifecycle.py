@@ -21,7 +21,7 @@ class UiLifecycleTests(unittest.TestCase):
     def test_language_and_version(self):
         self.assertEqual(i18n.translate('Установка ПО', 'en'), 'App installer')
         self.assertEqual(i18n.translate('Расширенные настройки', 'en'), 'Advanced settings')
-        self.assertIn("VERSION = '1.2.0'", UI)
+        self.assertIn("VERSION = '1.2.1'", UI)
         self.assertIn('def set_language(self, language: str)', INSTALLER)
     def test_package_ids_are_declarative(self):
         tree = ast.parse(INSTALLER)

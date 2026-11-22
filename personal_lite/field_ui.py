@@ -1,4 +1,4 @@
-"""FIELD 1.2: native-feeling bilingual desktop shell with dark/light appearance.
+"""FIELD 1.2.1: bilingual Windows control center with optional winter look.
 Core tweak, process and file-lock operations are unchanged from 0.7.
 """
 from __future__ import annotations
@@ -20,6 +20,7 @@ from .power_page import PowerPage
 from .catalog import TWEAKS, APPS, PRESETS
 from .ui import Studio, clear, label, button, QMessageBox as LocalizedMessageBox
 from .app_installer import AppInstallerPage
+from .winter_effects import WinterOverlay
 from shiboken6 import isValid
 QMessageBox = LocalizedMessageBox
 
@@ -37,7 +38,26 @@ LIGHT = {
 }
 STATE_DIR = Path(os.environ.get('APPDATA', str(Path.home()))) / 'FIELD'
 STATE_FILE = STATE_DIR / 'appearance.json'
-VERSION = '1.2.0'
+VERSION = '1.2.1'
+
+# A complete winter palette, keeping all existing UI tokens intact.
+WINTER_DARK = {
+    **DARK,
+    'bg': '#081a24', 'sidebar': '#0b242b', 'surface': '#102c33',
+    'raised': '#163740', 'line': '#33545a', 'text': '#f0fafb',
+    'muted': '#acc6c9', 'accent': '#f1d28a', 'accentStrong': '#168f84',
+    'accentText': '#ffffff', 'hover': '#20505a', 'input': '#0c2830',
+    'selection': '#245f61', 'chip': '#1a4148',
+}
+WINTER_LIGHT = {
+    **LIGHT,
+    'bg': '#f2fafb', 'sidebar': '#f7fffe', 'surface': '#ffffff',
+    'raised': '#e5f3f1', 'line': '#cee4e2', 'text': '#153d46',
+    'muted': '#577781', 'accent': '#116b63', 'accentStrong': '#168f84',
+    'accentText': '#ffffff', 'hover': '#e0f0ec', 'input': '#ffffff',
+    'selection': '#d4ebe7', 'chip': '#e2f3ed',
+}
+
 
 
 def resource_path(*parts):
@@ -45,8 +65,8 @@ def resource_path(*parts):
     return base.joinpath(*parts)
 
 
-def app_style(p):
-    return f"""
+def app_style(p, winter=False):
+    style = f"""
     QWidget {{font-family:'Segoe UI';font-size:13px;color:{p['text']};}}
     QMainWindow, QWidget#root, QWidget#content, QWidget#page, QScrollArea, QScrollArea > QWidget > QWidget {{background:{p['bg']};}}
     QLabel {{background:transparent;border:none;}}
@@ -91,8 +111,19 @@ def app_style(p):
     QTabBar::tab {{background:{p['raised']};color:{p['muted']};padding:12px 16px;border-radius:9px;margin-right:5px;}}
     QTabBar::tab:selected {{background:{p['chip']};color:{p['accent']};font-weight:750;}}
     QToolTip {{background:{p['raised']};color:{p['text']};border:1px solid {p['line']};}}
+    QPushButton#winterToggle {{background:{p['raised']};border:1px solid {p['line']};border-radius:16px;padding:7px 12px;color:{p['muted']};}}
+    QPushButton#winterToggle[winter="true"] {{background:{p['chip']};color:{p['accent']};border:1px solid {p['accent']};font-weight:750;}}
+    QLabel#winterBadge {{color:{p['accent']};background:{p['chip']};border:1px solid {p['line']};border-radius:10px;padding:8px 12px;font-size:10px;font-weight:800;}}
     QPlainTextEdit {{background:{p['input']};color:{p['text']};border:1px solid {p['line']};border-radius:10px;padding:10px;}}
     """
+    if winter:
+        style += f"""
+        QFrame#topbar {{background:qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 {p['sidebar']},stop:0.7 {p['bg']},stop:1 {p['chip']});border-bottom:1px solid {p['line']};}}
+        QFrame#hero {{background:qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 {p['surface']},stop:0.55 {p['raised']},stop:1 {p['chip']});border:1px solid {p['line']};border-radius:18px;}}
+        QPushButton#primary {{background:{p['accentStrong']};border:1px solid {p['accentStrong']};color:#ffffff;}}
+        QPushButton#primary:hover {{background:{p['selection']};border-color:{p['accentStrong']};}}
+        """
+    return style
 
 
 def block(text, size=13, color=None, weight=400):
@@ -118,6 +149,8 @@ class FieldStudio(Studio):
         except (OSError,ValueError):
             saved={}
         self.theme=saved.get('theme','dark') if saved.get('theme') in ('dark','light') else 'dark'
+        # This winter edition opens in festive mode, but users can turn it off.
+        self.winter_enabled = saved.get('winter_enabled', True) is not False
         # Match the Windows user interface locale on every launch.
         # Manual RU/EN changes affect this session only.
         self.lang=i18n.detect_system_language()
@@ -132,7 +165,7 @@ class FieldStudio(Studio):
     def save_state(self):
         try:
             STATE_DIR.mkdir(parents=True,exist_ok=True)
-            STATE_FILE.write_text(json.dumps({'theme':self.theme},indent=2),encoding='utf-8')
+            STATE_FILE.write_text(json.dumps({'theme':self.theme, 'winter_enabled':self.winter_enabled},indent=2),encoding='utf-8')
         except OSError:
             pass
 
@@ -146,7 +179,13 @@ class FieldStudio(Studio):
         icon.setPixmap(QPixmap(str(resource_path('assets', 'field_icon.png'))).scaled(42,42,Qt.KeepAspectRatio,Qt.SmoothTransformation))
         brand.addWidget(icon)
         self.brand=block('FIELD',22,weight=850);self.brand.setObjectName('brand');brand.addWidget(self.brand,1)
-        side.addLayout(brand);side.addSpacing(27)
+        side.addLayout(brand)
+        side.addSpacing(12)
+        self.winter_badge=QLabel('❄  WINTER EDITION  /  1.2.1')
+        self.winter_badge.setObjectName('winterBadge')
+        self.winter_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        side.addWidget(self.winter_badge)
+        side.addSpacing(14)
         self.nav_caption=block('WORKSPACE',10,'muted',750);side.addWidget(self.nav_caption);side.addSpacing(6)
         self.nav={}
         # Scrollable navigation: all 12 sections fit even on 720p screens.
@@ -168,7 +207,7 @@ class FieldStudio(Studio):
         nav_layout.addStretch()
         nav_scroll.setWidget(nav_host)
         side.addWidget(nav_scroll,1)
-        side.addWidget(block('FIELD   /   1.2',10,'muted',600))
+        side.addWidget(block('FIELD   /   '+VERSION,10,'muted',600))
         root.addWidget(rail)
 
         content=QWidget();content.setObjectName('content')
@@ -180,6 +219,13 @@ class FieldStudio(Studio):
         self.theme_button=QPushButton();self.theme_button.setObjectName('themeToggle')
         self.theme_button.setFixedWidth(112);self.theme_button.setAccessibleName('Toggle light and dark theme')
         self.theme_button.clicked.connect(self.toggle_theme);row.addWidget(self.theme_button)
+        self.winter_button=QPushButton()
+        self.winter_button.setObjectName('winterToggle')
+        self.winter_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.winter_button.setFixedWidth(133)
+        self.winter_button.setAccessibleName('Toggle festive winter decorations')
+        self.winter_button.clicked.connect(self.toggle_winter)
+        row.addWidget(self.winter_button)
         # Compact segmented language switch: no native combobox arrow or clipping.
         self.language_switch=QFrame();self.language_switch.setObjectName('languageSwitch')
         self.language_switch.setFixedHeight(39)
@@ -206,6 +252,8 @@ class FieldStudio(Studio):
         fr.addWidget(self.status);fr.addStretch()
         cv.addWidget(foot)
         root.addWidget(content,1)
+        # Overlay is a click-through child of the shell, not a new window.
+        self.winter_overlay = WinterOverlay(outer, active=self.winter_enabled)
 
     def update_chrome(self):
         self.header.setText('FIELD  /  ' + i18n.translate(self.current).upper())
@@ -217,6 +265,15 @@ class FieldStudio(Studio):
             if self.lang == 'ru' else
             ('☀  Light' if self.theme == 'dark' else '☾  Dark')
         )
+        self.winter_button.setText(
+            ('❄  Зима: вкл' if self.winter_enabled else '❄  Зима: выкл')
+            if self.lang == 'ru' else
+            ('❄  Winter: on' if self.winter_enabled else '❄  Winter: off')
+        )
+        self.winter_button.setProperty('winter', 'true' if self.winter_enabled else 'false')
+        self.winter_button.style().unpolish(self.winter_button)
+        self.winter_button.style().polish(self.winter_button)
+        self.winter_badge.setVisible(self.winter_enabled)
 
     def _live_page(self, attr):
         """Don't invoke a PySide wrapper after Qt deleted its C++ object."""
@@ -267,7 +324,7 @@ class FieldStudio(Studio):
             return
 
         custom = {
-            'Главная': ('_dashboard_page', lambda: DashboardPage(self.page, self.lang, self.navigate)),
+            'Главная': ('_dashboard_page', lambda: DashboardPage(self.page, self.lang, self.navigate, winter=self.winter_enabled)),
             'Установка ПО': ('_installer_page', lambda: AppInstallerPage(self.page, lang=self.lang)),
             'Очистка системы': ('_cleaner_page', lambda: CleanerPage(self.page, lang=self.lang)),
             'Электропитание': ('_power_page', lambda: PowerPage(self.page, lang=self.lang)),
@@ -381,8 +438,8 @@ class FieldStudio(Studio):
         return super().apply_selected()
 
     def apply_appearance(self):
-        self.palette_tokens=DARK if self.theme=='dark' else LIGHT
-        QApplication.instance().setStyleSheet(app_style(self.palette_tokens))
+        self.palette_tokens=(WINTER_DARK if self.theme=='dark' else WINTER_LIGHT) if self.winter_enabled else (DARK if self.theme=='dark' else LIGHT)
+        QApplication.instance().setStyleSheet(app_style(self.palette_tokens, self.winter_enabled))
         self.update_chrome()
 
     def toggle_theme(self):
@@ -391,6 +448,16 @@ class FieldStudio(Studio):
         # Style changes do not require rebuilding the current page: important
         # when a QProcess or QThread is in flight.
         self.apply_appearance()
+
+    def toggle_winter(self):
+        # Do not rebuild the page, avoiding QProcess/QThread deletion mid-operation.
+        self.winter_enabled = not self.winter_enabled
+        self.save_state()
+        self.winter_overlay.set_winter(self.winter_enabled)
+        self.apply_appearance()
+        dashboard = self._live_page('_dashboard_page')
+        if dashboard is not None:
+            dashboard.set_winter_enabled(self.winter_enabled)
 
     def change_language(self, lang):
         if lang not in ('ru', 'en') or lang == self.lang:
