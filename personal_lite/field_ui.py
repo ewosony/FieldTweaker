@@ -1,4 +1,4 @@
-"""FIELD 1.0: native-feeling bilingual desktop shell with dark/light appearance.
+"""FIELD 1.2: native-feeling bilingual desktop shell with dark/light appearance.
 Core tweak, process and file-lock operations are unchanged from 0.7.
 """
 from __future__ import annotations
@@ -13,9 +13,14 @@ from PySide6.QtWidgets import (QApplication, QWidget, QMainWindow, QFrame, QLabe
     QFileDialog, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
     QMessageBox, QTabWidget, QStackedWidget, QButtonGroup)
 from . import core, system_tools, i18n
+from .advanced_settings import AdvancedSettingsPage
+from .dashboard_page import DashboardPage
+from .cleaner_page import CleanerPage
+from .power_page import PowerPage
 from .catalog import TWEAKS, APPS, PRESETS
 from .ui import Studio, clear, label, button, QMessageBox as LocalizedMessageBox
 from .app_installer import AppInstallerPage
+from shiboken6 import isValid
 QMessageBox = LocalizedMessageBox
 
 DARK = {
@@ -32,6 +37,12 @@ LIGHT = {
 }
 STATE_DIR = Path(os.environ.get('APPDATA', str(Path.home()))) / 'FIELD'
 STATE_FILE = STATE_DIR / 'appearance.json'
+VERSION = '1.2.0'
+
+
+def resource_path(*parts):
+    base = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parent.parent))
+    return base.joinpath(*parts)
 
 
 def app_style(p):
@@ -42,9 +53,11 @@ def app_style(p):
     QLabel#muted {{color:{p['muted']};}}
     QLabel#pageTitle {{font-size:29px;font-weight:750;color:{p['text']};}}
     QLabel#sectionTitle {{font-size:19px;font-weight:750;color:{p['text']};}}
-    QFrame#sidebar {{background:{p['sidebar']};border-right:1px solid {p['line']};}}
+    QFrame#sidebar, QWidget#navHost, QScrollArea#navScroll {{background:{p['sidebar']};border-right:0;}}
+    QFrame#sidebar {{border-right:1px solid {p['line']};}}
     QFrame#topbar {{background:{p['bg']};border-bottom:1px solid {p['line']};}}
     QFrame#card, QFrame#row, QFrame#toolPanel {{background:{p['surface']};border:1px solid {p['line']};border-radius:15px;}}
+    QFrame#hero {{background:qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 {p['raised']},stop:1 {p['chip']});border:1px solid {p['line']};border-radius:18px;}}
     QFrame#toolbar {{background:{p['surface']};border:1px solid {p['line']};border-radius:13px;}}
     QFrame#statusBar {{background:{p['sidebar']};border-top:1px solid {p['line']};}}
     QLabel#eyebrow {{color:{p['accent']};font-size:11px;font-weight:800;}}
@@ -78,6 +91,7 @@ def app_style(p):
     QTabBar::tab {{background:{p['raised']};color:{p['muted']};padding:12px 16px;border-radius:9px;margin-right:5px;}}
     QTabBar::tab:selected {{background:{p['chip']};color:{p['accent']};font-weight:750;}}
     QToolTip {{background:{p['raised']};color:{p['text']};border:1px solid {p['line']};}}
+    QPlainTextEdit {{background:{p['input']};color:{p['text']};border:1px solid {p['line']};border-radius:10px;padding:10px;}}
     """
 
 
@@ -93,8 +107,10 @@ def block(text, size=13, color=None, weight=400):
 
 
 class FieldStudio(Studio):
-    NAV = [('Сведения о системе','◎'),('Твики','◈'),('Приложения','▤'),('Установка ПО','↓'),('Автозагрузка','◴'),
-           ('Инструменты','⌕'),('Профили','◇'),('История','≡')]
+    NAV = [('Главная','▦'),('Сведения о системе','◎'),('Твики','◈'),('Приложения','▤'),
+           ('Установка ПО','↓'),('Очистка системы','⌁'),('Электропитание','⚡'),
+           ('Расширенные настройки','⚙'),('Автозагрузка','◴'),('Инструменты','⌕'),
+           ('Профили','◇'),('История','≡')]
 
     def __init__(self):
         try:
@@ -107,8 +123,8 @@ class FieldStudio(Studio):
         self.lang=i18n.detect_system_language()
         i18n.set_language(self.lang)
         super().__init__()
-        self.setWindowTitle('FIELD')
-        self.setWindowIcon(QIcon(str(Path(__file__).resolve().parent.parent / 'assets' / 'field_icon.png')))
+        self.setWindowTitle('FIELD ' + VERSION)
+        self.setWindowIcon(QIcon(str(resource_path('assets', 'field.ico'))))
         self.resize(1370,850)
         self.setMinimumSize(1010,680)
         self.apply_appearance()
@@ -127,20 +143,32 @@ class FieldStudio(Studio):
         side=QVBoxLayout(rail);side.setContentsMargins(16,24,16,19);side.setSpacing(7)
         brand=QHBoxLayout();brand.setSpacing(12)
         icon=QLabel();icon.setFixedSize(42,42)
-        icon.setPixmap(QPixmap(str(Path(__file__).resolve().parent.parent / 'assets' / 'field_icon.png')).scaled(42,42,Qt.KeepAspectRatio,Qt.SmoothTransformation))
+        icon.setPixmap(QPixmap(str(resource_path('assets', 'field_icon.png'))).scaled(42,42,Qt.KeepAspectRatio,Qt.SmoothTransformation))
         brand.addWidget(icon)
         self.brand=block('FIELD',22,weight=850);self.brand.setObjectName('brand');brand.addWidget(self.brand,1)
         side.addLayout(brand);side.addSpacing(27)
         self.nav_caption=block('WORKSPACE',10,'muted',750);side.addWidget(self.nav_caption);side.addSpacing(6)
         self.nav={}
+        # Scrollable navigation: all 12 sections fit even on 720p screens.
+        nav_scroll=QScrollArea()
+        nav_scroll.setWidgetResizable(True)
+        nav_scroll.setFrameShape(QFrame.NoFrame)
+        nav_scroll.setObjectName('navScroll')
+        nav_host=QWidget()
+        nav_host.setObjectName('navHost')
+        nav_layout=QVBoxLayout(nav_host)
+        nav_layout.setContentsMargins(0, 0, 3, 0)
+        nav_layout.setSpacing(4)
         for name,ic in self.NAV:
             b=QPushButton(f'{ic}    {i18n.translate(name)}');b.setObjectName('nav')
             b.setCursor(Qt.PointingHandCursor)
-            b.setFixedHeight(46)
+            b.setFixedHeight(43)
             b.clicked.connect(lambda checked=False,n=name:self.navigate(n))
-            side.addWidget(b);self.nav[name]=b
-        side.addStretch()
-        side.addWidget(block('FIELD   /   1.0',10,'muted',600))
+            nav_layout.addWidget(b);self.nav[name]=b
+        nav_layout.addStretch()
+        nav_scroll.setWidget(nav_host)
+        side.addWidget(nav_scroll,1)
+        side.addWidget(block('FIELD   /   1.2',10,'muted',600))
         root.addWidget(rail)
 
         content=QWidget();content.setObjectName('content')
@@ -180,70 +208,103 @@ class FieldStudio(Studio):
         root.addWidget(content,1)
 
     def update_chrome(self):
-        page_title = (
-            'App Installer'
-            if self.current == 'Установка ПО' and self.lang == 'en'
-            else i18n.translate(self.current)
-    )
-
-        self.header.setText('FIELD  /  ' + page_title.upper())
+        self.header.setText('FIELD  /  ' + i18n.translate(self.current).upper())
         self.nav_caption.setText('РАЗДЕЛЫ' if self.lang == 'ru' else 'WORKSPACE')
-
-        for name, ic in self.NAV:
-            translated = (
-            'App Installer'
-            if name == 'Установка ПО' and self.lang == 'en'
-            else i18n.translate(name)
-        )
-            self.nav[name].setText(f'{ic}    {translated}')
-
+        for name, icon in self.NAV:
+            self.nav[name].setText(f'{icon}    {i18n.translate(name)}')
         self.theme_button.setText(
-        ('☀  Светлая' if self.theme == 'dark' else '☾  Тёмная')
-        if self.lang == 'ru'
-        else ('☀  Light' if self.theme == 'dark' else '☾  Dark')
-    )
+            ('☀  Светлая' if self.theme == 'dark' else '☾  Тёмная')
+            if self.lang == 'ru' else
+            ('☀  Light' if self.theme == 'dark' else '☾  Dark')
+        )
 
-    def navigate(self,name):
-        existing = getattr(self, '_installer_page', None)
-        if name != 'Установка ПО' and existing is not None and existing.is_installing():
-            QMessageBox.information(self, 'FIELD', 'Сначала останови или заверши установку приложений.')
+    def _live_page(self, attr):
+        """Don't invoke a PySide wrapper after Qt deleted its C++ object."""
+        page = getattr(self, attr, None)
+        if page is None:
+            return None
+        try:
+            if isValid(page):
+                return page
+        except RuntimeError:
+            pass
+        setattr(self, attr, None)
+        return None
+
+    def _mark_navigation(self, name):
+        self.current = name
+        for key, item in self.nav.items():
+            item.setProperty('active', 'true' if key == name else 'false')
+            item.style().unpolish(item)
+            item.style().polish(item)
+
+    def navigate(self, name, force=False):
+        if name == 'Обзор':
+            name = 'Главная'
+
+        installer = self._live_page('_installer_page')
+        advanced = self._live_page('_advanced_page')
+        cleaner = self._live_page('_cleaner_page')
+        if installer and installer.is_installing() and name != 'Установка ПО':
+            QMessageBox.information(self, 'FIELD',
+                'Сначала заверши или останови установку приложений.' if self.lang == 'ru'
+                else 'Finish or stop the app installation before leaving this page.')
             return
-        if name=='Обзор':
-            name='Сведения о системе'
-        if name=='Установка ПО':
-            self.current=name
-            for key,item in self.nav.items():
-                item.setProperty('active','true' if key==name else 'false')
-                item.style().unpolish(item);item.style().polish(item)
+        if installer and installer.is_checking() and name != 'Установка ПО':
+            QMessageBox.information(self, 'FIELD',
+                'Дождись проверки приложений.' if self.lang == 'ru'
+                else 'Wait for app detection to finish.')
+            return
+        if advanced and advanced.is_busy() and name != 'Расширенные настройки':
+            QMessageBox.information(self, 'FIELD',
+                'Дождись завершения изменения настроек.' if self.lang == 'ru'
+                else 'Wait for the current settings operation to finish.')
+            return
+        if cleaner and cleaner.is_busy() and name != 'Очистка системы':
+            QMessageBox.information(self, 'FIELD',
+                'Дождись завершения проверки или очистки.' if self.lang == 'ru'
+                else 'Wait for the cleanup operation to finish.')
+            return
+
+        custom = {
+            'Главная': ('_dashboard_page', lambda: DashboardPage(self.page, self.lang, self.navigate)),
+            'Установка ПО': ('_installer_page', lambda: AppInstallerPage(self.page, lang=self.lang)),
+            'Очистка системы': ('_cleaner_page', lambda: CleanerPage(self.page, lang=self.lang)),
+            'Электропитание': ('_power_page', lambda: PowerPage(self.page, lang=self.lang)),
+            'Расширенные настройки': ('_advanced_page', lambda: AdvancedSettingsPage(self.page, lang=self.lang)),
+        }
+        if not force and name == getattr(self, 'current', None) and name in custom:
+            self.update_chrome()
+            return
+        # Clear stale wrapper references before clear() schedules Qt deletion.
+        for attr in ('_dashboard_page', '_installer_page', '_cleaner_page', '_power_page', '_advanced_page'):
+            setattr(self, attr, None)
+        if name in custom:
+            self._mark_navigation(name)
             clear(self.body)
-            self._installer_page = AppInstallerPage(self.page)
-            self.body.addWidget(self._installer_page)
+            attr, factory = custom[name]
+            page = factory()
+            setattr(self, attr, page)
+            self.body.addWidget(page)
+            self.body.addStretch()
             self.scroll.verticalScrollBar().setValue(0)
-        elif name=='Сведения о системе':
-            self._installer_page = None
-            self.current=name
-            for key,item in self.nav.items():
-                item.setProperty('active','true' if key==name else 'false')
-                item.style().unpolish(item);item.style().polish(item)
+        elif name == 'Сведения о системе':
+            self._mark_navigation(name)
             clear(self.body)
             self.system_details_page()
             self.body.addStretch()
             self.scroll.verticalScrollBar().setValue(0)
-        elif name=='Инструменты':
-            self._installer_page = None
-            self.current=name
-            for key,item in self.nav.items():
-                item.setProperty('active','true' if key==name else 'false')
-                item.style().unpolish(item);item.style().polish(item)
+        elif name == 'Инструменты':
+            self._mark_navigation(name)
             clear(self.body)
             self.tools_page()
             self.body.addStretch()
             self.scroll.verticalScrollBar().setValue(0)
         else:
-            self._installer_page = None
             super().navigate(name)
         self.update_chrome()
-        self.translate_page()
+        if name not in custom:
+            self.translate_page()
 
     def system_details_page(self):
         self.body.addWidget(block('Сведения о системе',30,None,800))
@@ -325,17 +386,56 @@ class FieldStudio(Studio):
         self.update_chrome()
 
     def toggle_theme(self):
-        self.theme='light' if self.theme=='dark' else 'dark'
+        self.theme = 'light' if self.theme == 'dark' else 'dark'
         self.save_state()
+        # Style changes do not require rebuilding the current page: important
+        # when a QProcess or QThread is in flight.
         self.apply_appearance()
-        self.navigate(self.current)
 
-    def change_language(self,lang):
-        if lang not in ('ru','en') or lang == self.lang:return
-        self.lang=lang
-        i18n.set_language(self.lang)
+    def change_language(self, lang):
+        if lang not in ('ru', 'en') or lang == self.lang:
+            return
+        advanced = self._live_page('_advanced_page')
+        if advanced and advanced.is_busy():
+            QMessageBox.information(self, 'FIELD',
+                'Дождись завершения изменения настроек.' if self.lang == 'ru'
+                else 'Wait for the current settings operation to finish.')
+            return
+        self.lang = lang
+        i18n.set_language(lang)
         self.save_state()
-        self.navigate(self.current)
+        for option in self.language_buttons.buttons():
+            option.setChecked(option.text() == lang.upper())
+        for attr, section in (
+            ('_installer_page', 'Установка ПО'),
+            ('_dashboard_page', 'Главная'),
+            ('_cleaner_page', 'Очистка системы'),
+            ('_power_page', 'Электропитание'),
+        ):
+            page = self._live_page(attr)
+            if page is not None and self.current == section:
+                page.set_language(lang)
+                self.update_chrome()
+                return
+        self.navigate(self.current, force=True)
+
+    def closeEvent(self, event):
+        installer = self._live_page('_installer_page')
+        if installer and (installer.is_installing() or installer.is_checking()):
+            QMessageBox.information(self, 'FIELD',
+                'Останови или заверши установку и проверку перед выходом.' if self.lang == 'ru'
+                else 'Finish installing or checking apps before quitting.')
+            event.ignore()
+            return
+        for attr in ('_advanced_page', '_cleaner_page'):
+            page = self._live_page(attr)
+            if page and page.is_busy():
+                QMessageBox.information(self, 'FIELD',
+                    'Дождись завершения операции перед выходом.' if self.lang == 'ru'
+                    else 'Wait for the operation to finish before quitting.')
+                event.ignore()
+                return
+        super().closeEvent(event)
 
     def translate_page(self):
         if self.lang!='en':
@@ -498,14 +598,7 @@ class FieldStudio(Studio):
 def main():
     app = QApplication(sys.argv)
     app.setStyle('Fusion')
-
-    from pathlib import Path
-    from PySide6.QtGui import QIcon
-
-    base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
-    app.setWindowIcon(QIcon(str(base / "assets" / "field.ico")))
-
+    app.setWindowIcon(QIcon(str(resource_path('assets', 'field.ico'))))
     win = FieldStudio()
     win.show()
-
-    sys.exit(app.exec())
+    return app.exec()

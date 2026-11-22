@@ -1,6 +1,32 @@
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
 .venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Build outputs
 build/
 dist/
 *.spec
+
+# IDE and OS
+.vscode/*
+!.vscode/launch.json
+.idea/
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Local logs / settings
+*.log
+.env
+.env.*
+!.env.example
+.field_patch_backups/
+
+# Diagnostic PyInstaller builds
+build_diag/
+dist_diag/

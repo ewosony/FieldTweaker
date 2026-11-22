@@ -8,7 +8,7 @@ TREE = ast.parse(SOURCE)
 CLASS = next(n for n in TREE.body if isinstance(n, ast.ClassDef) and n.name == "FieldStudio")
 METHODS = {n.name for n in CLASS.body if isinstance(n, ast.FunctionDef)}
 
-class FieldVersionOneTests(unittest.TestCase):
+class FieldVersionTwelveTests(unittest.TestCase):
     def test_system_refresh_exists(self):
         self.assertIn("fetch_system_details", METHODS)
         self.assertIn("render_system_details", METHODS)
@@ -18,7 +18,7 @@ class FieldVersionOneTests(unittest.TestCase):
         self.assertIn("Сведения о системе", names)
         self.assertNotIn("Диагностика", names)
     def test_version_and_footer(self):
-        self.assertIn("FIELD   /   1.0", SOURCE)
+        self.assertIn("FIELD   /   1.2", SOURCE)
         self.assertNotIn("self.bottom_label", SOURCE)
 
 if __name__ == "__main__":

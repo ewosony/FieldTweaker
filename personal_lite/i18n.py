@@ -2,6 +2,10 @@
 import re
 
 EN = {
+'Главная':'Home','Очистка системы':'System cleanup','Электропитание':'Power plans',
+'Расширенные настройки':'Advanced settings',
+'Установка ПО':'App installer',
+'Установка программ':'App installer',
 'Сведения о системе':'System information',
 'Основные характеристики компьютера и Windows.':'Essential PC and Windows details.',
 'Редакция':'Edition','Видеокарта':'Graphics card','Объём ОЗУ':'Installed RAM',
