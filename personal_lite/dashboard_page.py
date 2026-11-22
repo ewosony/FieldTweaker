@@ -15,9 +15,10 @@ def nice_bytes(value, lang='ru'):
 
 
 class DashboardPage(QWidget):
-    def __init__(self, parent=None, lang='ru', navigate=None):
+    def __init__(self, parent=None, lang='ru', navigate=None, winter=False):
         super().__init__(parent)
         self.lang = lang
+        self.winter_enabled = bool(winter)
         self.navigate_to = navigate
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -29,6 +30,9 @@ class DashboardPage(QWidget):
         self.eyebrow = QLabel('FIELD  /  SYSTEM CONTROL')
         self.eyebrow.setObjectName('eyebrow')
         h.addWidget(self.eyebrow)
+        self.holiday_banner=QLabel('❄   W I N T E R   E D I T I O N   ✦')
+        self.holiday_banner.setStyleSheet('font-size:13px;font-weight:800;color:#ebcf84;padding:8px 0px;')
+        h.addWidget(self.holiday_banner)
         self.heading = QLabel()
         self.heading.setStyleSheet('font-size:29px;font-weight:800;')
         h.addWidget(self.heading)
@@ -79,14 +83,22 @@ class DashboardPage(QWidget):
         self.timer.timeout.connect(self.refresh)
         self.timer.start()
         self.set_language(lang)
+        self.set_winter_enabled(winter)
         self.refresh()
 
     def set_language(self, language):
         self.lang = language
         en = language == 'en'
-        self.heading.setText('Your PC at a glance' if en else 'Твой компьютер под контролем')
-        self.sub.setText('System metrics and quick access to FIELD tools.' if en else
-                         'Состояние системы и быстрый доступ к инструментам FIELD.')
+        self.heading.setText(
+            ('Winter-ready control center' if en else 'Зимний FIELD — всё под контролем')
+            if self.winter_enabled else
+            ('Your PC at a glance' if en else 'Твой компьютер под контролем')
+        )
+        self.sub.setText(
+            ('System overview, winter mood and quick actions.' if en else 'Состояние системы, зимняя атмосфера и быстрые действия.')
+            if self.winter_enabled else
+            ('System metrics and quick access to FIELD tools.' if en else 'Состояние системы и быстрый доступ к инструментам FIELD.')
+        )
         self.actions_title.setText('Quick actions' if en else 'Быстрые действия')
         for key, name in [('cpu', 'Processor' if en else 'Процессор'),
                           ('ram', 'Memory' if en else 'Оперативная память'),
@@ -96,6 +108,12 @@ class DashboardPage(QWidget):
         for button, ru, english in self.action_buttons:
             button.setText(english if en else ru)
         self.refresh()
+
+    def set_winter_enabled(self, enabled):
+        self.winter_enabled = bool(enabled)
+        self.holiday_banner.setVisible(self.winter_enabled)
+        self.eyebrow.setText('FIELD  /  WINTER CONTROL' if self.winter_enabled else 'FIELD  /  SYSTEM CONTROL')
+        self.set_language(self.lang)
 
     def refresh(self):
         try:

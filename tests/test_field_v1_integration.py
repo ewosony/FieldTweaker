@@ -18,7 +18,8 @@ class FieldVersionTwelveTests(unittest.TestCase):
         self.assertIn("Сведения о системе", names)
         self.assertNotIn("Диагностика", names)
     def test_version_and_footer(self):
-        self.assertIn("FIELD   /   1.2", SOURCE)
+        self.assertIn("side.addWidget(block('FIELD   /   '+VERSION", SOURCE)
+        self.assertIn("VERSION = '1.2.1'", SOURCE)
         self.assertNotIn("self.bottom_label", SOURCE)
 
 if __name__ == "__main__":

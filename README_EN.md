@@ -1,12 +1,21 @@
-# FIELD 1.2.0 — Windows Control Center
+# FIELD 1.2.1 — Winter Edition / Windows Control Center
 
 Complete Python/PySide6 source tree for Windows 10 and 11. Repository: https://github.com/ewosony/FieldTweaker.
+
+
+## Winter Edition 1.2.1
+
+- Procedural snowfall and festive string lights, rendered locally with Qt (no internet needed).
+- Seasonal winter colors, a holiday dashboard banner and a sidebar WINTER EDITION badge.
+- **❄ Winter: on/off** button in the header, independent of the Dark/Light switch.
+- Preference persists in `%APPDATA%\FIELD\appearance.json`; the existing pages are not recreated when toggling the theme.
+- Decorations are click-through and the snow animation stops when hidden or disabled.
 
 ## Features
 
 - **Home:** live CPU, memory, disk capacity and quick navigation.
 - **System cleanup:** scan and selectively delete old temporary files, thumbnails, crash dumps, archived error reports, and browser caches. Preview before deletion, explicit confirmation, no cookies/passwords/history/documents/restore points.
-- **App installer:** 16 winget applications, search, category filter, essentials preset, installed-app detection, upgrade selected, progress and installation log. Fully integrated into the main window.
+- **App installer:** 26 winget applications, search, category filter, essentials preset, installed-app detection, upgrade selected, progress and installation log. Fully integrated into the main window.
 - **Power plans:** switch among plans already present in Windows, restore the previous active plan.
 - **Advanced settings:** reversible Windows Update controls, driver update preferences, Game DVR background capture, Fast Startup and wallpaper JPEG quality.
 - Existing settings, built-in apps, startup items, profiles, activity history, process monitor, and file-lock inspector remain available.
@@ -26,7 +35,7 @@ py -3.11 -m pip install --upgrade pyinstaller
 .\build_exe.bat
 ```
 
-The bundled one-file executable is built at `dist\FIELD 1.2.exe`. Official app icon PNGs are not included; the app displays fallback badges and provides optional download scripts.
+The bundled one-file executable is built at `dist\FIELD 1.2.1.exe`. Eight app brand icons are bundled. Missing icons can be fetched optionally via the included downloader; a local fallback is always available.
 
 ## Safety
 
