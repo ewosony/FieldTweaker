@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (QApplication, QWidget, QMainWindow, QFrame, QLabe
 from . import core, system_tools, i18n
 from .catalog import TWEAKS, APPS, PRESETS
 from .ui import Studio, clear, label, button, QMessageBox as LocalizedMessageBox
+from .app_installer import AppInstallerPage
 QMessageBox = LocalizedMessageBox
 
 DARK = {
@@ -92,7 +93,7 @@ def block(text, size=13, color=None, weight=400):
 
 
 class FieldStudio(Studio):
-    NAV = [('Сведения о системе','◎'),('Твики','◈'),('Приложения','▤'),('Автозагрузка','◴'),
+    NAV = [('Сведения о системе','◎'),('Твики','◈'),('Приложения','▤'),('Установка ПО','↓'),('Автозагрузка','◴'),
            ('Инструменты','⌕'),('Профили','◇'),('История','≡')]
 
     def __init__(self):
@@ -179,17 +180,47 @@ class FieldStudio(Studio):
         root.addWidget(content,1)
 
     def update_chrome(self):
-        self.header.setText('FIELD  /  '+i18n.translate(self.current).upper())
-        self.nav_caption.setText('РАЗДЕЛЫ' if self.lang=='ru' else 'WORKSPACE')
-        for name,ic in self.NAV:
-            self.nav[name].setText(f'{ic}    {i18n.translate(name)}')
-        self.theme_button.setText(('☀  Светлая' if self.theme=='dark' else '☾  Тёмная') if self.lang=='ru'
-                                  else ('☀  Light' if self.theme=='dark' else '☾  Dark'))
+        page_title = (
+            'App Installer'
+            if self.current == 'Установка ПО' and self.lang == 'en'
+            else i18n.translate(self.current)
+    )
+
+        self.header.setText('FIELD  /  ' + page_title.upper())
+        self.nav_caption.setText('РАЗДЕЛЫ' if self.lang == 'ru' else 'WORKSPACE')
+
+        for name, ic in self.NAV:
+            translated = (
+            'App Installer'
+            if name == 'Установка ПО' and self.lang == 'en'
+            else i18n.translate(name)
+        )
+            self.nav[name].setText(f'{ic}    {translated}')
+
+        self.theme_button.setText(
+        ('☀  Светлая' if self.theme == 'dark' else '☾  Тёмная')
+        if self.lang == 'ru'
+        else ('☀  Light' if self.theme == 'dark' else '☾  Dark')
+    )
 
     def navigate(self,name):
+        existing = getattr(self, '_installer_page', None)
+        if name != 'Установка ПО' and existing is not None and existing.is_installing():
+            QMessageBox.information(self, 'FIELD', 'Сначала останови или заверши установку приложений.')
+            return
         if name=='Обзор':
             name='Сведения о системе'
-        if name=='Сведения о системе':
+        if name=='Установка ПО':
+            self.current=name
+            for key,item in self.nav.items():
+                item.setProperty('active','true' if key==name else 'false')
+                item.style().unpolish(item);item.style().polish(item)
+            clear(self.body)
+            self._installer_page = AppInstallerPage(self.page)
+            self.body.addWidget(self._installer_page)
+            self.scroll.verticalScrollBar().setValue(0)
+        elif name=='Сведения о системе':
+            self._installer_page = None
             self.current=name
             for key,item in self.nav.items():
                 item.setProperty('active','true' if key==name else 'false')
@@ -199,6 +230,7 @@ class FieldStudio(Studio):
             self.body.addStretch()
             self.scroll.verticalScrollBar().setValue(0)
         elif name=='Инструменты':
+            self._installer_page = None
             self.current=name
             for key,item in self.nav.items():
                 item.setProperty('active','true' if key==name else 'false')
@@ -208,6 +240,7 @@ class FieldStudio(Studio):
             self.body.addStretch()
             self.scroll.verticalScrollBar().setValue(0)
         else:
+            self._installer_page = None
             super().navigate(name)
         self.update_chrome()
         self.translate_page()
@@ -461,7 +494,6 @@ class FieldStudio(Studio):
     def process_terminated(self,result):
         QMessageBox.information(self,'Результат',result)
         self.refresh_processes()
-
 
 def main():
     app = QApplication(sys.argv)
